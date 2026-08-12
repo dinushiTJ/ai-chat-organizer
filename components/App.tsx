@@ -60,7 +60,7 @@ export default function App() {
   return (
     <main className="panel">
       <header>
-        <div className="eyebrow">CHAT ORGANIZER</div>
+        <div className="brand"><img src="/icons/logo.svg" alt="" /><div className="eyebrow">CHAT ORGANIZER</div></div>
         <h1>Organize your chats</h1>
         <p className="muted">Your Projects are the source of truth. Nothing is stored by us.</p>
       </header>

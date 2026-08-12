@@ -10,6 +10,12 @@ export default defineConfig({
     host_permissions: ['https://chatgpt.com/*'],
     action: {
       default_title: 'Open Chat Organizer',
+      default_icon: {
+        '128': 'icons/icon-128.png',
+      },
+    },
+    icons: {
+      '128': 'icons/icon-128.png',
     },
     side_panel: {
       default_path: 'sidepanel.html',
