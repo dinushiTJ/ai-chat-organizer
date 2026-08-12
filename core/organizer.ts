@@ -68,9 +68,7 @@ export async function previewOrganization(
     const existing = findMatchingExistingProject(assignment.project, projects);
     return existing
       ? { ...withTitle, action: 'USE_EXISTING' as const, project: existing.name, reason: `Reusing existing Project: ${existing.name}.` }
-      : projects.length === 0
-        ? { ...withTitle, action: 'NEEDS_REVIEW' as const, reason: 'No existing Projects were detected. Review before creating a new Project.' }
-        : withTitle;
+      : withTitle;
   });
 
   return {

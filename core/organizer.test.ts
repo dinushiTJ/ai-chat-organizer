@@ -18,7 +18,7 @@ describe('previewOrganization', () => {
     expect(preview.assignments[0]?.conversationTitle).toBe('Interview');
   });
 
-  it('does not propose generic new Projects when none are detected', async () => {
+  it('proposes confident categories when no Projects are detected', async () => {
     const adapter = {
       listProjects: async () => [],
       listUnorganizedChats: async () => [{ id: 'new', title: 'Travel plans' }],
@@ -26,7 +26,7 @@ describe('previewOrganization', () => {
     } as unknown as ChatGPTAdapter;
     const classifier: Classifier = { classify: async () => ({ assignments: [{ conversationId: 'new', action: 'CREATE_NEW', project: 'travel', confidence: 0.9, reason: 'travel' }] }) };
     const preview = await previewOrganization(adapter, classifier);
-    expect(preview.assignments[0]?.action).toBe('NEEDS_REVIEW');
+    expect(preview.assignments[0]?.action).toBe('CREATE_NEW');
   });
 });
 

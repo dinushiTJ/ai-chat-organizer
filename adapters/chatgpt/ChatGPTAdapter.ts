@@ -47,7 +47,7 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
 
   async createProject(name: string): Promise<Project> {
     const trigger = [...this.document.querySelectorAll<HTMLElement>(selectors.projectCreateTriggers)]
-      .find((element) => /^\s*(new project|create project|add project)\s*$/i.test(element.textContent ?? '') || /new project|create project/i.test(element.getAttribute('aria-label') ?? ''));
+      .find((element) => /^(new project|create project|add project|new)$/i.test((element.textContent ?? '').trim()) || /new project|create project|add project/i.test(element.getAttribute('aria-label') ?? '') || /new project|create project|add project/i.test(element.getAttribute('data-testid') ?? ''));
     if (!trigger) throw new Error(`Could not find ChatGPT's New Project control for "${name}".`);
     trigger.click();
 
