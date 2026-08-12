@@ -30,8 +30,8 @@ export default function App() {
       await connectContentScript(tabId);
       try {
         return await chrome.tabs.sendMessage(tabId, message) as T;
-      } catch {
-        throw error;
+      } catch (retryError) {
+        throw retryError instanceof Error ? retryError : error;
       }
     }
   }
