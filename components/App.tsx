@@ -22,7 +22,7 @@ export default function App() {
 
   async function getChatGPTTab(): Promise<chrome.tabs.Tab & { id: number }> {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !isChatGPTUrl(tab.url)) throw new Error('Open ChatGPT in the active browser tab.');
+      if (!tab?.id || !isChatGPTUrl(tab.url)) throw new Error('Open ChatGPT in the active browser tab.');
     return tab as chrome.tabs.Tab & { id: number };
   }
 
@@ -32,22 +32,8 @@ export default function App() {
       if (response === undefined) throw new Error('ChatGPT did not respond. Refresh the ChatGPT tab and try again.');
       return response;
     } catch (error) {
-      await connectContentScript(tabId);
-      try {
-        const response = await chrome.tabs.sendMessage(tabId, message) as T | undefined;
-        if (response === undefined) throw new Error('ChatGPT did not respond after reconnecting.');
-        return response;
-      } catch (retryError) {
-        throw retryError instanceof Error ? retryError : error;
-      }
+      throw error instanceof Error ? error : new Error('ChatGPT content script is not connected. Refresh the ChatGPT tab.');
     }
-  }
-
-  async function connectContentScript(tabId: number): Promise<void> {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['content-scripts/chatgpt.js'],
-    });
   }
 
   async function checkConnection() {
@@ -92,7 +78,7 @@ export default function App() {
         if (!response.ok) throw new Error(response.error);
         result = response.value;
       } catch {
-        throw new Error('ChatGPT is still loading. Refresh the ChatGPT tab and try again.');
+        throw new Error('ChatGPT content script is not connected. Refresh the ChatGPT tab, then reopen this panel.');
       }
       setScan(result);
       setConnection('connected');
