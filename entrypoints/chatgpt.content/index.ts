@@ -14,7 +14,9 @@ export default defineContentScript({
         : message.type === 'ORGANIZE_APPLY'
           ? message.preview ? applyOrganization(adapter, message.preview) : Promise.reject(new Error('Organization preview is missing.'))
           : adapter.scan();
-      void operation.then(sendResponse).catch((error: unknown) => sendResponse({ error: error instanceof Error ? error.message : 'Scan failed.' }));
+      void operation
+        .then((value) => sendResponse({ ok: true, value }))
+        .catch((error: unknown) => sendResponse({ ok: false, error: error instanceof Error ? error.message : 'ChatGPT operation failed.' }));
       return true;
     });
   },

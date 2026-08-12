@@ -2,26 +2,33 @@ import { useState } from 'react';
 import type { ScanResult } from '../adapters/chatgpt/types';
 import type { OrganizationPreview, OrganizationResult } from '../core/organizer';
 
+type RuntimeResponse<T> = { ok: true; value: T } | { ok: false; error: string };
+
 export default function App() {
   const [scan, setScan] = useState<ScanResult>({ projects: [], unorganizedChats: [] });
   const [status, setStatus] = useState<'idle' | 'scanning' | 'error'>('idle');
   const [preview, setPreview] = useState<OrganizationPreview | undefined>();
   const [result, setResult] = useState<OrganizationResult | undefined>();
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
   async function scanChatGPT() {
     setStatus('scanning');
+    setErrorMessage(undefined);
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id || !tab.url?.startsWith('https://chatgpt.com/')) throw new Error('Open ChatGPT to scan.');
       let result: ScanResult;
       try {
-        result = await chrome.tabs.sendMessage<{ type: string }, ScanResult>(tab.id, { type: 'SCAN_CHATGPT' });
+        const response = await chrome.tabs.sendMessage<{ type: string }, RuntimeResponse<ScanResult>>(tab.id, { type: 'SCAN_CHATGPT' });
+        if (!response.ok) throw new Error(response.error);
+        result = response.value;
       } catch {
         throw new Error('ChatGPT is still loading. Refresh the ChatGPT tab and try again.');
       }
       setScan(result);
       setStatus('idle');
     } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Scan failed.');
       setStatus('error');
       console.error(error);
     }
@@ -30,13 +37,23 @@ export default function App() {
   async function organizeNew() {
     setStatus('scanning');
     setPreview(undefined);
+    setResult(undefined);
+    setErrorMessage(undefined);
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id || !tab.url?.startsWith('https://chatgpt.com/')) throw new Error('Open ChatGPT to organize.');
-      const result = await chrome.tabs.sendMessage<{ type: string }, OrganizationPreview>(tab.id, { type: 'ORGANIZE_PREVIEW' });
-      setPreview(result);
+      const response = await chrome.tabs.sendMessage<{ type: string }, RuntimeResponse<OrganizationPreview>>(tab.id, { type: 'ORGANIZE_PREVIEW' });
+      if (!response.ok) throw new Error(response.error);
+      setPreview(response.value);
+      const actionable = response.value.assignments.some((assignment) => assignment.action !== 'NEEDS_REVIEW' && assignment.confidence >= 0.7);
+      if (actionable) {
+        const appliedResponse = await chrome.tabs.sendMessage<{ type: string; preview: OrganizationPreview }, RuntimeResponse<OrganizationResult>>(tab.id, { type: 'ORGANIZE_APPLY', preview: response.value });
+        if (!appliedResponse.ok) throw new Error(appliedResponse.error);
+        setResult(appliedResponse.value);
+      }
       setStatus('idle');
     } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Organization failed.');
       setStatus('error');
       console.error(error);
     }
@@ -45,13 +62,16 @@ export default function App() {
   async function applyOrganization() {
     if (!preview) return;
     setStatus('scanning');
+    setErrorMessage(undefined);
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id || !tab.url?.startsWith('https://chatgpt.com/')) throw new Error('Open ChatGPT to organize.');
-      const applied = await chrome.tabs.sendMessage<{ type: string; preview: OrganizationPreview }, OrganizationResult>(tab.id, { type: 'ORGANIZE_APPLY', preview });
-      setResult(applied);
+      const response = await chrome.tabs.sendMessage<{ type: string; preview: OrganizationPreview }, RuntimeResponse<OrganizationResult>>(tab.id, { type: 'ORGANIZE_APPLY', preview });
+      if (!response.ok) throw new Error(response.error);
+      setResult(response.value);
       setStatus('idle');
     } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Organization failed.');
       setStatus('error');
       console.error(error);
     }
@@ -81,7 +101,7 @@ export default function App() {
         </button>
       </div>
       {status === 'scanning' && <p className="muted scan-note">Scrolling the ChatGPT sidebar to load all visible chats.</p>}
-      {status === 'error' && <p className="error">Open ChatGPT in the active tab, then try again.</p>}
+      {status === 'error' && <p className="error">{errorMessage ?? 'Open ChatGPT in the active tab, then try again.'}</p>}
       {preview && <section className="preview">
         <h2>Organization Preview</h2>
         <p className="muted">{preview.conversationsScanned === 0 ? 'Everything is already organized.' : `${preview.conversationsScanned} new chats reviewed.`}</p>
@@ -90,7 +110,7 @@ export default function App() {
           <span>{assignment.action === 'NEEDS_REVIEW' ? 'Needs review' : `${assignment.action === 'CREATE_NEW' ? 'New Project' : 'Use'}: ${assignment.project ?? 'Unassigned'}`}</span>
         </div>)}
         {preview.assignments.some((assignment) => assignment.action !== 'NEEDS_REVIEW' && assignment.confidence >= 0.7) && !result && <button className="primary" onClick={applyOrganization}>Apply Organization</button>}
-        {result && <p className="success">Moved {result.moved} chats. Skipped {result.skipped}. Failed {result.failed.length}.</p>}
+        {result && <><p className="success">Moved {result.moved} chats. Created {result.created} Projects. Skipped {result.skipped}. Failed {result.failed.length}.</p>{result.failed.map((failure) => <p className="error" key={failure}>{failure}</p>)}</>}
       </section>}
       {status === 'idle' && scan.projects.length > 0 && (
         <section className="project-list">
