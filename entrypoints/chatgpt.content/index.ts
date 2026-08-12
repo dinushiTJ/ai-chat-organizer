@@ -33,7 +33,8 @@ export default defineContentScript({
       if (message.type === 'START_ORGANIZE') {
         const jobId = crypto.randomUUID();
         sendResponse({ ok: true, jobId });
-        void runOrganizationJob(jobId);
+        // Let Chrome deliver the acknowledgement before starting the long job.
+        window.setTimeout(() => void runOrganizationJob(jobId), 0);
         return false;
       }
       if (message.type !== 'PING_CHATGPT' && message.type !== 'SCAN_CHATGPT' && message.type !== 'ORGANIZE_PREVIEW' && message.type !== 'ORGANIZE_APPLY') return false;

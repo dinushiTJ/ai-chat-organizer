@@ -38,7 +38,9 @@ export default function App() {
         await new Promise((resolve) => window.setTimeout(resolve, 400));
       }
     }
-    throw lastError instanceof Error ? lastError : new Error('ChatGPT content script is not connected. Refresh the ChatGPT tab.');
+    throw lastError instanceof Error
+      ? new Error(`${lastError.message} The ChatGPT content script may be stale; close and reopen the ChatGPT tab.`)
+      : new Error('ChatGPT content script is not connected. Close and reopen the ChatGPT tab.');
   }
 
   async function checkConnection() {
