@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ScanResult } from '../adapters/chatgpt/types';
 import type { OrganizationPreview, OrganizationResult } from '../core/organizer';
 
@@ -24,7 +24,23 @@ export default function App() {
   }
 
   async function sendToChatGPT<T>(tabId: number, message: unknown): Promise<T> {
-    return chrome.tabs.sendMessage(tabId, message) as Promise<T>;
+    try {
+      return await chrome.tabs.sendMessage(tabId, message) as T;
+    } catch (error) {
+      await connectContentScript(tabId);
+      try {
+        return await chrome.tabs.sendMessage(tabId, message) as T;
+      } catch {
+        throw error;
+      }
+    }
+  }
+
+  async function connectContentScript(tabId: number): Promise<void> {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content-scripts/chatgpt.js'],
+    });
   }
 
   async function checkConnection() {
@@ -38,7 +54,7 @@ export default function App() {
     }
   }
 
-  useState(() => { void checkConnection(); });
+  useEffect(() => { void checkConnection(); }, []);
 
   async function scanChatGPT() {
     setStatus('scanning');
