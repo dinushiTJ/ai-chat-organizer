@@ -1,10 +1,15 @@
 import { selectors } from './selectors';
-import type { ConversationSummary, Project, ScanResult } from './types';
+import type { ConversationContext, ConversationSummary, Project, ScanResult } from './types';
 
 export interface ChatGPTAdapter {
   listProjects(): Promise<Project[]>;
   listUnorganizedChats(): Promise<ConversationSummary[]>;
   listAllChats(): Promise<ConversationSummary[]>;
+  getConversationContext(conversationId: string): Promise<ConversationContext>;
+  createProject(name: string): Promise<Project>;
+  moveChat(conversationId: string, projectId: string): Promise<void>;
+  archiveChat(conversationId: string): Promise<void>;
+  deleteChat(conversationId: string): Promise<void>;
   scan(): Promise<ScanResult>;
 }
 
@@ -29,6 +34,28 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
     const chats = await this.listAllChats();
     const projectIds = new Set((await this.listProjects()).map((project) => project.id));
     return chats.filter((chat) => !chat.projectId || !projectIds.has(chat.projectId));
+  }
+
+  async getConversationContext(conversationId: string): Promise<ConversationContext> {
+    const chat = (await this.listAllChats()).find((item) => item.id === conversationId);
+    if (!chat) throw new Error(`Conversation ${conversationId} was not found.`);
+    return { id: chat.id, title: chat.title, firstMessages: [], recentMessages: [] };
+  }
+
+  async createProject(_name: string): Promise<Project> {
+    throw new Error('Project creation is not available until ChatGPT action verification is implemented.');
+  }
+
+  async moveChat(_conversationId: string, _projectId: string): Promise<void> {
+    throw new Error('Moving chats is not available until ChatGPT action verification is implemented.');
+  }
+
+  async archiveChat(_conversationId: string): Promise<void> {
+    throw new Error('Archiving chats is not available until ChatGPT action verification is implemented.');
+  }
+
+  async deleteChat(_conversationId: string): Promise<void> {
+    throw new Error('Deleting chats is not available until ChatGPT action verification is implemented.');
   }
 
   async scan(): Promise<ScanResult> {

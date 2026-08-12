@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import type { ScanResult } from '../adapters/chatgpt/types';
+import type { OrganizationPreview } from '../core/organizer';
 
 export default function App() {
   const [scan, setScan] = useState<ScanResult>({ projects: [], unorganizedChats: [] });
   const [status, setStatus] = useState<'idle' | 'scanning' | 'error'>('idle');
+  const [preview, setPreview] = useState<OrganizationPreview | undefined>();
 
   async function scanChatGPT() {
     setStatus('scanning');
@@ -24,6 +26,21 @@ export default function App() {
     }
   }
 
+  async function organizeNew() {
+    setStatus('scanning');
+    setPreview(undefined);
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id || !tab.url?.startsWith('https://chatgpt.com/')) throw new Error('Open ChatGPT to organize.');
+      const result = await chrome.tabs.sendMessage<{ type: string }, OrganizationPreview>(tab.id, { type: 'ORGANIZE_PREVIEW' });
+      setPreview(result);
+      setStatus('idle');
+    } catch (error) {
+      setStatus('error');
+      console.error(error);
+    }
+  }
+
   return (
     <main className="panel">
       <header>
@@ -37,6 +54,9 @@ export default function App() {
         <div><strong>{scan.unorganizedChats.length}</strong><span>Unorganized chats</span></div>
       </section>
       <div className="actions">
+        <button className="primary" onClick={organizeNew} disabled={status === 'scanning'}>
+          Organize New
+        </button>
         <button className="primary" onClick={scanChatGPT} disabled={status === 'scanning'}>
           {status === 'scanning' ? 'Scrolling through chats...' : 'Scan ChatGPT'}
         </button>
@@ -46,6 +66,14 @@ export default function App() {
       </div>
       {status === 'scanning' && <p className="muted scan-note">Scrolling the ChatGPT sidebar to load all visible chats.</p>}
       {status === 'error' && <p className="error">Open ChatGPT in the active tab, then try again.</p>}
+      {preview && <section className="preview">
+        <h2>Organization Preview</h2>
+        <p className="muted">{preview.conversationsScanned === 0 ? 'Everything is already organized.' : `${preview.conversationsScanned} new chats reviewed. Nothing has been moved.`}</p>
+        {preview.assignments.map((assignment) => <div className="assignment" key={assignment.conversationId}>
+          <strong>{assignment.conversationId}</strong>
+          <span>{assignment.action === 'NEEDS_REVIEW' ? 'Needs review' : `${assignment.action === 'CREATE_NEW' ? 'New Project' : 'Use'}: ${assignment.project ?? 'Unassigned'}`}</span>
+        </div>)}
+      </section>}
       {status === 'idle' && scan.projects.length > 0 && (
         <section className="project-list">
           <h2>Existing Projects</h2>
