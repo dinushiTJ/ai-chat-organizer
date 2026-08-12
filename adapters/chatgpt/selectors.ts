@@ -6,4 +6,6 @@ export const selectors = {
   conversationLinks: 'a[href*="/c/"]',
   menu: '[role="menu"]',
   menuItems: '[role="menuitem"], [role="option"]',
+  dialogs: '[role="dialog"]',
+  projectCreateTriggers: 'button, a, [role="button"]',
 } as const;

@@ -27,7 +27,7 @@ export class LocalClassifier implements Classifier {
         if (existing) {
           return { conversationId: context.id, action: 'USE_EXISTING' as const, project: existing.name, confidence, reason: `Matches the existing ${existing.name} Project.` };
         }
-        return { conversationId: context.id, action: 'CREATE_NEW' as const, project: candidate.project, confidence, reason: 'Topic matches a suggested category, but no existing Project matches it.' };
+        return { conversationId: context.id, action: 'NEEDS_REVIEW' as const, confidence, reason: `Suggested category "${candidate.project}" does not match a detected Project. Review before creating anything.` };
       }),
     };
   }

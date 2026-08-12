@@ -21,15 +21,16 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
     const links = [...this.document.querySelectorAll<HTMLAnchorElement>(selectors.projectLinks)];
     const fallbackLinks = [...this.document.querySelectorAll<HTMLAnchorElement>('a[href*="project"]')]
       .filter((link) => /project/i.test(link.href));
-    return this.uniqueById([...links, ...fallbackLinks]
+    const projects = this.uniqueById([...links, ...fallbackLinks]
       .map((link) => ({ id: this.idFromHref(link.href), name: link.textContent?.trim() ?? '' }))
       .filter((project) => project.id && project.name));
+    return this.uniqueByName(projects);
   }
 
   async listAllChats(): Promise<ConversationSummary[]> {
     await this.loadAllChats();
     return this.uniqueById([...this.document.querySelectorAll<HTMLAnchorElement>(selectors.conversationLinks)]
-      .map((link) => ({ id: this.conversationId(link.href), projectId: this.projectId(link.href), title: link.textContent?.trim() ?? 'Untitled conversation' }))
+      .map((link) => ({ id: this.conversationId(link.href), projectId: this.projectId(link.href), title: this.conversationTitle(link) }))
       .filter((chat) => chat.id));
   }
 
@@ -44,8 +45,24 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
     return { id: chat.id, title: chat.title, firstMessages: [], recentMessages: [] };
   }
 
-  async createProject(_name: string): Promise<Project> {
-    throw new Error('Project creation is not available until ChatGPT action verification is implemented.');
+  async createProject(name: string): Promise<Project> {
+    const trigger = [...this.document.querySelectorAll<HTMLElement>(selectors.projectCreateTriggers)]
+      .find((element) => /^\s*(new project|create project|add project)\s*$/i.test(element.textContent ?? '') || /new project|create project/i.test(element.getAttribute('aria-label') ?? ''));
+    if (!trigger) throw new Error(`Could not find ChatGPT's New Project control for "${name}".`);
+    trigger.click();
+
+    const dialog = await this.waitForElement<HTMLElement>(selectors.dialogs).catch(() => this.document.body);
+    const input = await this.waitForElement<HTMLInputElement>('input[placeholder*="project" i], input[name="name"], input[type="text"]', 2500);
+    input.value = name;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const create = [...dialog.querySelectorAll<HTMLElement>('button, [role="button"]')]
+      .find((element) => /^\s*(create|continue|save)\s*$/i.test(element.textContent ?? '') && !element.hasAttribute('disabled'));
+    if (!create) throw new Error(`ChatGPT did not show a confirmation button for Project "${name}".`);
+    create.click();
+    await this.wait(500);
+    const project = (await this.listProjects()).find((item) => item.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (!project) throw new Error(`Project "${name}" was not verified after creation.`);
+    return project;
   }
 
   async moveChat(conversationId: string, projectId: string): Promise<void> {
@@ -71,7 +88,10 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
       .find((item) => item.textContent?.trim() === this.projectName(projectId));
     if (!projectItem) throw new Error(`Could not verify destination Project ${projectId}.`);
     projectItem.click();
-    await this.wait(250);
+    await this.wait(500);
+    const current = await this.listAllChats();
+    const moved = current.find((chat) => chat.id === conversationId)?.projectId === projectId;
+    if (!moved) throw new Error(`ChatGPT did not verify that "${link.textContent?.trim() ?? conversationId}" moved to the selected Project.`);
   }
 
   async archiveChat(_conversationId: string): Promise<void> {
@@ -162,6 +182,24 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
   private projectName(projectId: string): string {
     return [...this.document.querySelectorAll<HTMLAnchorElement>(selectors.projectLinks)]
       .find((link) => this.idFromHref(link.href) === projectId)?.textContent?.trim() ?? '';
+  }
+
+  private conversationTitle(link: HTMLAnchorElement): string {
+    const labelled = link.getAttribute?.('aria-label')?.trim();
+    if (labelled) return labelled;
+    const row = this.conversationRow(link);
+    const text = row?.textContent?.replace(/\s+/g, ' ').trim() ?? link.textContent?.trim();
+    return text || 'Untitled conversation';
+  }
+
+  private uniqueByName(projects: Project[]): Project[] {
+    const seen = new Set<string>();
+    return projects.filter((project) => {
+      const key = project.name.toLowerCase().replace(/\s+/g, ' ').trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   private conversationRow(link: HTMLAnchorElement): HTMLElement | undefined {

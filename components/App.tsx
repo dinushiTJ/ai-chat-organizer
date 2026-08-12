@@ -153,7 +153,7 @@ export default function App() {
         {preview.conversationsScanned > 0 && preview.assignments.length === 0 && <p className="error">No conversations received a safe classification.</p>}
         {preview.assignments.map((assignment) => <div className="assignment" key={assignment.conversationId}>
           <strong>{assignment.conversationTitle ?? assignment.conversationId}</strong>
-          <span>{assignment.action === 'NEEDS_REVIEW' ? 'Needs review' : `${assignment.action === 'CREATE_NEW' ? 'New Project' : 'Use'}: ${assignment.project ?? 'Unassigned'}`}</span>
+          <span>{assignment.action === 'NEEDS_REVIEW' ? `Needs review${assignment.reason ? `: ${assignment.reason}` : ''}` : `${assignment.action === 'CREATE_NEW' ? 'New Project' : 'Use'}: ${assignment.project ?? 'Unassigned'}`}</span>
         </div>)}
         {preview.assignments.some((assignment) => assignment.action !== 'NEEDS_REVIEW' && assignment.confidence >= 0.7) && !result && <button className="primary" onClick={applyOrganization}>Apply Organization</button>}
         {result && <><p className={result.moved > 0 ? 'success' : 'error'}>{result.moved > 0 ? `Moved ${result.moved} chats.` : 'No chats were moved.'} Created {result.created} Projects. Skipped {result.skipped}. Failed {result.failed.length}.</p>{result.failed.map((failure) => <p className="error" key={failure}>{failure}</p>)}</>}
