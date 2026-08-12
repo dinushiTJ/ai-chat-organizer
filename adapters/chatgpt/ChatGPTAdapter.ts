@@ -32,8 +32,7 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
 
   async listUnorganizedChats(): Promise<ConversationSummary[]> {
     const chats = await this.listAllChats();
-    const projectIds = new Set((await this.listProjects()).map((project) => project.id));
-    return chats.filter((chat) => !chat.projectId || !projectIds.has(chat.projectId));
+    return chats.filter((chat) => !chat.projectId);
   }
 
   async getConversationContext(conversationId: string): Promise<ConversationContext> {
@@ -51,19 +50,21 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
       .find((candidate) => this.idFromHref(candidate.href) === conversationId);
     if (!link) throw new Error(`Conversation ${conversationId} is not visible in the ChatGPT sidebar.`);
 
-    const row = link.closest('div');
-    const menuButton = row?.querySelector<HTMLButtonElement>('button[aria-label*="option" i], button[aria-label*="menu" i]');
+    const row = this.conversationRow(link);
+    const menuButton = row?.querySelector<HTMLButtonElement>(
+      'button[aria-label*="option" i], button[aria-label*="menu" i], button[data-testid*="menu" i]'
+    ) ?? this.nearbyMenuButton(link);
     if (!menuButton) throw new Error(`Could not verify the options menu for conversation "${link.textContent?.trim() ?? conversationId}".`);
     menuButton.click();
-    const menu = await this.waitForElement<HTMLElement>(selectors.menu);
-    const moveItem = [...menu.querySelectorAll<HTMLElement>(selectors.menuItems)]
-      .find((item) => /move.*project|add.*project/i.test(item.textContent ?? ''));
+    const menu = await this.waitForElement<HTMLElement>(selectors.menu).catch(() => this.document.body);
+    const moveItem = [...menu.querySelectorAll<HTMLElement>(selectors.menuItems), ...this.document.querySelectorAll<HTMLElement>('button')]
+      .find((item) => /move to project|add to project|move conversation/i.test(item.textContent ?? item.getAttribute('aria-label') ?? ''));
     if (!moveItem) throw new Error('ChatGPT did not show a Move to project action.');
     moveItem.click();
 
     const project = await this.waitForElement<HTMLElement>(`[data-project-id="${CSS.escape(projectId)}"]`)
       .catch(() => undefined);
-    const projectItem = project ?? [...this.document.querySelectorAll<HTMLElement>(selectors.menuItems)]
+    const projectItem = project ?? [...this.document.querySelectorAll<HTMLElement>(selectors.menuItems), ...this.document.querySelectorAll<HTMLElement>('button')]
       .find((item) => item.textContent?.trim() === this.projectName(projectId));
     if (!projectItem) throw new Error(`Could not verify destination Project ${projectId}.`);
     projectItem.click();
@@ -146,5 +147,19 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
   private projectName(projectId: string): string {
     return [...this.document.querySelectorAll<HTMLAnchorElement>(selectors.projectLinks)]
       .find((link) => this.idFromHref(link.href) === projectId)?.textContent?.trim() ?? '';
+  }
+
+  private conversationRow(link: HTMLAnchorElement): HTMLElement | undefined {
+    let current = link.parentElement;
+    for (let depth = 0; current && depth < 6; depth += 1) {
+      if (current.querySelector('button')) return current;
+      current = current.parentElement;
+    }
+    return undefined;
+  }
+
+  private nearbyMenuButton(link: HTMLAnchorElement): HTMLButtonElement | undefined {
+    const row = link.parentElement?.parentElement;
+    return row?.querySelector<HTMLButtonElement>('button') ?? undefined;
   }
 }

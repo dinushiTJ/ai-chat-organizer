@@ -7,6 +7,7 @@ export interface ConversationSummary {
   id: string;
   title: string;
   projectId?: string;
+  projectName?: string;
 }
 
 export interface ConversationContext {
