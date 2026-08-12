@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ScanResult } from '../adapters/chatgpt/types';
 import type { OrganizationPreview, OrganizationResult } from '../core/organizer';
 import type { OrganizationJobProgress } from '../core/jobs';
@@ -14,7 +14,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [connection, setConnection] = useState<ConnectionState>('checking');
   const [jobMessage, setJobMessage] = useState<string | undefined>();
-  const [jobId, setJobId] = useState<string | undefined>();
+  const jobIdRef = useRef<string | undefined>(undefined);
 
   function isChatGPTUrl(url: string | undefined): boolean {
     return Boolean(url?.startsWith('https://chatgpt.com/') || url?.startsWith('https://chat.openai.com/'));
@@ -28,11 +28,15 @@ export default function App() {
 
   async function sendToChatGPT<T>(tabId: number, message: unknown): Promise<T> {
     try {
-      return await chrome.tabs.sendMessage(tabId, message) as T;
+      const response = await chrome.tabs.sendMessage(tabId, message) as T | undefined;
+      if (response === undefined) throw new Error('ChatGPT did not respond. Refresh the ChatGPT tab and try again.');
+      return response;
     } catch (error) {
       await connectContentScript(tabId);
       try {
-        return await chrome.tabs.sendMessage(tabId, message) as T;
+        const response = await chrome.tabs.sendMessage(tabId, message) as T | undefined;
+        if (response === undefined) throw new Error('ChatGPT did not respond after reconnecting.');
+        return response;
       } catch (retryError) {
         throw retryError instanceof Error ? retryError : error;
       }
@@ -61,7 +65,7 @@ export default function App() {
 
   useEffect(() => {
     const onProgress = (message: OrganizationJobProgress) => {
-      if (message.type !== 'ORGANIZE_PROGRESS' || message.jobId !== jobId) return;
+      if (message.type !== 'ORGANIZE_PROGRESS' || message.jobId !== jobIdRef.current) return;
       setJobMessage(message.message);
       if (message.preview) setPreview(message.preview);
       if (message.phase === 'complete' && message.result) {
@@ -75,7 +79,7 @@ export default function App() {
     };
     chrome.runtime.onMessage.addListener(onProgress);
     return () => chrome.runtime.onMessage.removeListener(onProgress);
-  }, [jobId]);
+  }, []);
 
   async function scanChatGPT() {
     setStatus('scanning');
@@ -110,7 +114,7 @@ export default function App() {
       const tab = await getChatGPTTab();
       const response = await sendToChatGPT<RuntimeResponse<{ jobId: string }>>(tab.id, { type: 'START_ORGANIZE' });
       if (!response.ok) throw new Error(response.error);
-      setJobId(response.value.jobId);
+      jobIdRef.current = response.value.jobId;
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Organization failed.');
       setStatus('error');
