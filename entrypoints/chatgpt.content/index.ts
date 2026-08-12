@@ -29,10 +29,9 @@ export default defineContentScript({
       }
     }
 
-    chrome.runtime.onMessage.addListener((message: { type?: string; preview?: OrganizationPreview }, _sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((message: { type?: string; jobId?: string; preview?: OrganizationPreview }, _sender, sendResponse) => {
       if (message.type === 'START_ORGANIZE') {
-        const jobId = crypto.randomUUID();
-        sendResponse({ ok: true, jobId });
+        const jobId = message.jobId ?? crypto.randomUUID();
         // Let Chrome deliver the acknowledgement before starting the long job.
         window.setTimeout(() => void runOrganizationJob(jobId), 0);
         return false;

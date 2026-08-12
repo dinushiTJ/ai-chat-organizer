@@ -105,9 +105,9 @@ export default function App() {
     setJobMessage('Starting organization...');
     try {
       const tab = await getChatGPTTab();
-      const response = await sendToChatGPT<RuntimeResponse<{ jobId: string }>>(tab.id, { type: 'START_ORGANIZE' });
-      if (!response.ok) throw new Error(response.error);
-      jobIdRef.current = response.value.jobId;
+      const nextJobId = crypto.randomUUID();
+      jobIdRef.current = nextJobId;
+      await chrome.tabs.sendMessage(tab.id, { type: 'START_ORGANIZE', jobId: nextJobId }).catch(() => undefined);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Organization failed.');
       setStatus('error');
