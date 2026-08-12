@@ -61,12 +61,16 @@ export async function previewOrganization(
   }
 
   const classification = await classifier.classify(contexts, projects);
+  const titles = new Map(conversations.map((conversation) => [conversation.id, conversation.title]));
   const assignments = classification.assignments.map((assignment) => {
-    if (assignment.action !== 'CREATE_NEW' || !assignment.project) return assignment;
+    const withTitle = { ...assignment, conversationTitle: titles.get(assignment.conversationId) ?? assignment.conversationId };
+    if (assignment.action !== 'CREATE_NEW' || !assignment.project) return withTitle;
     const existing = findMatchingExistingProject(assignment.project, projects);
     return existing
-      ? { ...assignment, action: 'USE_EXISTING' as const, project: existing.name, reason: `Reusing existing Project: ${existing.name}.` }
-      : assignment;
+      ? { ...withTitle, action: 'USE_EXISTING' as const, project: existing.name, reason: `Reusing existing Project: ${existing.name}.` }
+      : projects.length === 0
+        ? { ...withTitle, action: 'NEEDS_REVIEW' as const, reason: 'No existing Projects were detected. Review before creating a new Project.' }
+        : withTitle;
   });
 
   return {

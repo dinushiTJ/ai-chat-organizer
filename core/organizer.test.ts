@@ -15,6 +15,18 @@ describe('previewOrganization', () => {
     const preview = await previewOrganization(adapter, classifier);
     expect(preview.assignments[0]?.action).toBe('USE_EXISTING');
     expect(preview.assignments[0]?.project).toBe('Career');
+    expect(preview.assignments[0]?.conversationTitle).toBe('Interview');
+  });
+
+  it('does not propose generic new Projects when none are detected', async () => {
+    const adapter = {
+      listProjects: async () => [],
+      listUnorganizedChats: async () => [{ id: 'new', title: 'Travel plans' }],
+      getConversationContext: async () => ({ id: 'new', title: 'Travel plans', firstMessages: [], recentMessages: [] }),
+    } as unknown as ChatGPTAdapter;
+    const classifier: Classifier = { classify: async () => ({ assignments: [{ conversationId: 'new', action: 'CREATE_NEW', project: 'travel', confidence: 0.9, reason: 'travel' }] }) };
+    const preview = await previewOrganization(adapter, classifier);
+    expect(preview.assignments[0]?.action).toBe('NEEDS_REVIEW');
   });
 });
 

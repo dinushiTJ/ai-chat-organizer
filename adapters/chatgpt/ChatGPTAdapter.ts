@@ -18,7 +18,10 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
 
   async listProjects(): Promise<Project[]> {
     await this.loadAllChats();
-    return this.uniqueById([...this.document.querySelectorAll<HTMLAnchorElement>(selectors.projectLinks)]
+    const links = [...this.document.querySelectorAll<HTMLAnchorElement>(selectors.projectLinks)];
+    const fallbackLinks = [...this.document.querySelectorAll<HTMLAnchorElement>('a[href*="project"]')]
+      .filter((link) => /project/i.test(link.href));
+    return this.uniqueById([...links, ...fallbackLinks]
       .map((link) => ({ id: this.idFromHref(link.href), name: link.textContent?.trim() ?? '' }))
       .filter((project) => project.id && project.name));
   }
@@ -26,7 +29,7 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
   async listAllChats(): Promise<ConversationSummary[]> {
     await this.loadAllChats();
     return this.uniqueById([...this.document.querySelectorAll<HTMLAnchorElement>(selectors.conversationLinks)]
-      .map((link) => ({ id: this.idFromHref(link.href), title: link.textContent?.trim() ?? 'Untitled conversation' }))
+      .map((link) => ({ id: this.conversationId(link.href), projectId: this.projectId(link.href), title: link.textContent?.trim() ?? 'Untitled conversation' }))
       .filter((chat) => chat.id));
   }
 
@@ -89,6 +92,18 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
 
   private idFromHref(href: string): string {
     return href.split('/').filter(Boolean).at(-1) ?? '';
+  }
+
+  private conversationId(href: string): string {
+    const parts = href.split('/').filter(Boolean);
+    const index = parts.findIndex((part) => part === 'c');
+    return index >= 0 ? parts[index + 1] ?? '' : this.idFromHref(href);
+  }
+
+  private projectId(href: string): string | undefined {
+    const parts = href.split('/').filter(Boolean);
+    const index = parts.findIndex((part) => part === 'project');
+    return index >= 0 ? parts[index + 1] : undefined;
   }
 
   private async loadAllChats(): Promise<void> {

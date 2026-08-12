@@ -3,6 +3,7 @@ import type { ConversationContext, Project } from './types';
 
 export const assignmentSchema = z.object({
   conversationId: z.string().min(1),
+  conversationTitle: z.string().optional(),
   action: z.enum(['USE_EXISTING', 'CREATE_NEW', 'NEEDS_REVIEW']),
   project: z.string().min(1).optional(),
   confidence: z.number().min(0).max(1),

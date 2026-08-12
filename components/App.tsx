@@ -149,9 +149,10 @@ export default function App() {
       {preview && <section className="preview">
         <h2>Organization Preview</h2>
         <p className="muted">{preview.conversationsScanned === 0 ? 'Everything is already organized.' : `${preview.conversationsScanned} new chats reviewed.`}</p>
+        <p className="muted">Projects detected: {preview.projects.length ? preview.projects.map((project) => project.name).join(', ') : 'none'}</p>
         {preview.conversationsScanned > 0 && preview.assignments.length === 0 && <p className="error">No conversations received a safe classification.</p>}
         {preview.assignments.map((assignment) => <div className="assignment" key={assignment.conversationId}>
-          <strong>{assignment.conversationId}</strong>
+          <strong>{assignment.conversationTitle ?? assignment.conversationId}</strong>
           <span>{assignment.action === 'NEEDS_REVIEW' ? 'Needs review' : `${assignment.action === 'CREATE_NEW' ? 'New Project' : 'Use'}: ${assignment.project ?? 'Unassigned'}`}</span>
         </div>)}
         {preview.assignments.some((assignment) => assignment.action !== 'NEEDS_REVIEW' && assignment.confidence >= 0.7) && !result && <button className="primary" onClick={applyOrganization}>Apply Organization</button>}
