@@ -1,8 +1,8 @@
 # Extension Logos
 
-Place the two logo files in this folder:
+The supplied logo files live in this folder:
 
-- `logo.svg` for the side panel branding
-- `icon-128.png` for the Chrome extension icon
+- `Sorta Logo - dark.png` for the side panel branding and Chrome extension icon
+- `Sorta Logo - white.png` for dark-theme surfaces when needed
 
 After adding them, run `npm run build` and reload `.output/chrome-mv3` in Chrome.

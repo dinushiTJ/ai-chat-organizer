@@ -11,11 +11,11 @@ export default defineConfig({
     action: {
       default_title: 'Open Chat Organizer',
       default_icon: {
-        '128': 'icons/icon-128.png',
+        '128': 'icons/Sorta Logo - dark.png',
       },
     },
     icons: {
-      '128': 'icons/icon-128.png',
+      '128': 'icons/Sorta Logo - dark.png',
     },
     side_panel: {
       default_path: 'sidepanel.html',
