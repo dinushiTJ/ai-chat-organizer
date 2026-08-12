@@ -17,7 +17,7 @@ export default function App() {
   const jobIdRef = useRef<string | undefined>(undefined);
 
   function isChatGPTUrl(url: string | undefined): boolean {
-    return Boolean(url?.startsWith('https://chatgpt.com/') || url?.startsWith('https://chat.openai.com/'));
+    return Boolean(url?.startsWith('https://chatgpt.com/') || url?.startsWith('https://www.chatgpt.com/') || url?.startsWith('https://chat.openai.com/'));
   }
 
   async function getChatGPTTab(): Promise<chrome.tabs.Tab & { id: number }> {
@@ -27,13 +27,18 @@ export default function App() {
   }
 
   async function sendToChatGPT<T>(tabId: number, message: unknown): Promise<T> {
-    try {
-      const response = await chrome.tabs.sendMessage(tabId, message) as T | undefined;
-      if (response === undefined) throw new Error('ChatGPT did not respond. Refresh the ChatGPT tab and try again.');
-      return response;
-    } catch (error) {
-      throw error instanceof Error ? error : new Error('ChatGPT content script is not connected. Refresh the ChatGPT tab.');
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const response = await chrome.tabs.sendMessage(tabId, message) as T | undefined;
+        if (response === undefined) throw new Error('ChatGPT returned an empty response.');
+        return response;
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+      }
     }
+    throw lastError instanceof Error ? lastError : new Error('ChatGPT content script is not connected. Refresh the ChatGPT tab.');
   }
 
   async function checkConnection() {

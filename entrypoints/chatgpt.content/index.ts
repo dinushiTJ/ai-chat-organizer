@@ -4,8 +4,8 @@ import { LocalClassifier } from '../../core/ruleClassifier';
 import type { OrganizationJobProgress } from '../../core/jobs';
 
 export default defineContentScript({
-  matches: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
-  runAt: 'document_idle',
+  matches: ['https://chatgpt.com/*', 'https://www.chatgpt.com/*', 'https://chat.openai.com/*'],
+  runAt: 'document_start',
   main() {
     const listenerKey = '__chatOrganizerMessageListener';
     if ((window as unknown as Record<string, boolean>)[listenerKey]) return;

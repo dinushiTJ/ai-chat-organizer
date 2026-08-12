@@ -7,7 +7,7 @@ export default defineConfig({
     description: 'Incrementally organize ChatGPT conversations into Projects.',
     version: '0.1.0',
     permissions: ['sidePanel', 'storage', 'tabs'],
-    host_permissions: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
+    host_permissions: ['https://chatgpt.com/*', 'https://www.chatgpt.com/*', 'https://chat.openai.com/*'],
     action: {
       default_title: 'Open Chat Organizer',
       default_icon: {
