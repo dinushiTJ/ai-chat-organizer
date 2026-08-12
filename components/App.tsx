@@ -3,6 +3,7 @@ import type { ScanResult } from '../adapters/chatgpt/types';
 import type { OrganizationPreview, OrganizationResult } from '../core/organizer';
 
 type RuntimeResponse<T> = { ok: true; value: T } | { ok: false; error: string };
+type ConnectionState = 'checking' | 'connected' | 'disconnected';
 
 export default function App() {
   const [scan, setScan] = useState<ScanResult>({ projects: [], unorganizedChats: [] });
@@ -10,22 +11,50 @@ export default function App() {
   const [preview, setPreview] = useState<OrganizationPreview | undefined>();
   const [result, setResult] = useState<OrganizationResult | undefined>();
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [connection, setConnection] = useState<ConnectionState>('checking');
+
+  function isChatGPTUrl(url: string | undefined): boolean {
+    return Boolean(url?.startsWith('https://chatgpt.com/') || url?.startsWith('https://chat.openai.com/'));
+  }
+
+  async function getChatGPTTab(): Promise<chrome.tabs.Tab & { id: number }> {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !isChatGPTUrl(tab.url)) throw new Error('Open ChatGPT in the active browser tab.');
+    return tab as chrome.tabs.Tab & { id: number };
+  }
+
+  async function sendToChatGPT<T>(tabId: number, message: unknown): Promise<T> {
+    return chrome.tabs.sendMessage(tabId, message) as Promise<T>;
+  }
+
+  async function checkConnection() {
+    try {
+      const tab = await getChatGPTTab();
+      const response = await sendToChatGPT<RuntimeResponse<{ connected: boolean }>>(tab.id, { type: 'PING_CHATGPT' });
+      if (!response.ok) throw new Error(response.error);
+      setConnection('connected');
+    } catch {
+      setConnection('disconnected');
+    }
+  }
+
+  useState(() => { void checkConnection(); });
 
   async function scanChatGPT() {
     setStatus('scanning');
     setErrorMessage(undefined);
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id || !tab.url?.startsWith('https://chatgpt.com/')) throw new Error('Open ChatGPT to scan.');
+      const tab = await getChatGPTTab();
       let result: ScanResult;
       try {
-        const response = await chrome.tabs.sendMessage<{ type: string }, RuntimeResponse<ScanResult>>(tab.id, { type: 'SCAN_CHATGPT' });
+        const response = await sendToChatGPT<RuntimeResponse<ScanResult>>(tab.id, { type: 'SCAN_CHATGPT' });
         if (!response.ok) throw new Error(response.error);
         result = response.value;
       } catch {
         throw new Error('ChatGPT is still loading. Refresh the ChatGPT tab and try again.');
       }
       setScan(result);
+      setConnection('connected');
       setStatus('idle');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Scan failed.');
@@ -40,14 +69,13 @@ export default function App() {
     setResult(undefined);
     setErrorMessage(undefined);
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id || !tab.url?.startsWith('https://chatgpt.com/')) throw new Error('Open ChatGPT to organize.');
-      const response = await chrome.tabs.sendMessage<{ type: string }, RuntimeResponse<OrganizationPreview>>(tab.id, { type: 'ORGANIZE_PREVIEW' });
+      const tab = await getChatGPTTab();
+      const response = await sendToChatGPT<RuntimeResponse<OrganizationPreview>>(tab.id, { type: 'ORGANIZE_PREVIEW' });
       if (!response.ok) throw new Error(response.error);
       setPreview(response.value);
       const actionable = response.value.assignments.some((assignment) => assignment.action !== 'NEEDS_REVIEW' && assignment.confidence >= 0.7);
       if (actionable) {
-        const appliedResponse = await chrome.tabs.sendMessage<{ type: string; preview: OrganizationPreview }, RuntimeResponse<OrganizationResult>>(tab.id, { type: 'ORGANIZE_APPLY', preview: response.value });
+        const appliedResponse = await sendToChatGPT<RuntimeResponse<OrganizationResult>>(tab.id, { type: 'ORGANIZE_APPLY', preview: response.value });
         if (!appliedResponse.ok) throw new Error(appliedResponse.error);
         setResult(appliedResponse.value);
       }
@@ -64,9 +92,8 @@ export default function App() {
     setStatus('scanning');
     setErrorMessage(undefined);
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id || !tab.url?.startsWith('https://chatgpt.com/')) throw new Error('Open ChatGPT to organize.');
-      const response = await chrome.tabs.sendMessage<{ type: string; preview: OrganizationPreview }, RuntimeResponse<OrganizationResult>>(tab.id, { type: 'ORGANIZE_APPLY', preview });
+      const tab = await getChatGPTTab();
+      const response = await sendToChatGPT<RuntimeResponse<OrganizationResult>>(tab.id, { type: 'ORGANIZE_APPLY', preview });
       if (!response.ok) throw new Error(response.error);
       setResult(response.value);
       setStatus('idle');
@@ -84,7 +111,7 @@ export default function App() {
         <h1>Organize your chats</h1>
         <p className="muted">Your Projects are the source of truth. Nothing is stored by us.</p>
       </header>
-      <section className="connection"><span className="dot" /> Connected to ChatGPT</section>
+      <section className={`connection ${connection === 'disconnected' ? 'connection-error' : ''}`}><span className="dot" /> {connection === 'connected' ? 'Connected to ChatGPT' : connection === 'checking' ? 'Checking ChatGPT connection...' : 'ChatGPT page not connected'}</section>
       <section className="stats">
         <div><strong>{scan.projects.length}</strong><span>Projects found</span></div>
         <div><strong>{scan.unorganizedChats.length}</strong><span>Unorganized chats</span></div>
@@ -102,6 +129,7 @@ export default function App() {
       </div>
       {status === 'scanning' && <p className="muted scan-note">Scrolling the ChatGPT sidebar to load all visible chats.</p>}
       {status === 'error' && <p className="error">{errorMessage ?? 'Open ChatGPT in the active tab, then try again.'}</p>}
+      {connection === 'disconnected' && <p className="error">Refresh the ChatGPT page after reloading the extension, then reopen this panel.</p>}
       {preview && <section className="preview">
         <h2>Organization Preview</h2>
         <p className="muted">{preview.conversationsScanned === 0 ? 'Everything is already organized.' : `${preview.conversationsScanned} new chats reviewed.`}</p>

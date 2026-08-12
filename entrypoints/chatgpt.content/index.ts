@@ -3,10 +3,14 @@ import { applyOrganization, previewOrganization, type OrganizationPreview } from
 import { LocalClassifier } from '../../core/ruleClassifier';
 
 export default defineContentScript({
-  matches: ['https://chatgpt.com/*'],
+  matches: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
   runAt: 'document_idle',
   main() {
     chrome.runtime.onMessage.addListener((message: { type?: string; preview?: OrganizationPreview }, _sender, sendResponse) => {
+      if (message.type === 'PING_CHATGPT') {
+        sendResponse({ ok: true, value: { connected: true } });
+        return;
+      }
       if (message.type !== 'SCAN_CHATGPT' && message.type !== 'ORGANIZE_PREVIEW' && message.type !== 'ORGANIZE_APPLY') return;
       const adapter = new ChatGPTDomAdapter(document);
       const operation = message.type === 'ORGANIZE_PREVIEW'

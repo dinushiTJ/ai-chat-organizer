@@ -18,6 +18,7 @@ h2 { margin: 0 0 12px; font-size: 14px; }
 .muted { color: #6b6c70; font-size: 13px; line-height: 1.5; }
 .connection { align-items: center; background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; display: flex; gap: 8px; margin: 24px 0 14px; padding: 12px; font-size: 13px; }
 .dot { background: #10a37f; border-radius: 50%; height: 8px; width: 8px; }
+.connection-error .dot { background: #b42318; }
 .stats { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; margin-bottom: 18px; }
 .stats div { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 14px; }
 .stats strong, .stats span { display: block; }
