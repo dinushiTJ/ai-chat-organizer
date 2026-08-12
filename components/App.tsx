@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ScanResult } from '../adapters/chatgpt/types';
 import type { OrganizationPreview, OrganizationResult } from '../core/organizer';
+import type { OrganizationJobProgress } from '../core/jobs';
 
 type RuntimeResponse<T> = { ok: true; value: T } | { ok: false; error: string };
 type ConnectionState = 'checking' | 'connected' | 'disconnected';
@@ -12,6 +13,8 @@ export default function App() {
   const [result, setResult] = useState<OrganizationResult | undefined>();
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [connection, setConnection] = useState<ConnectionState>('checking');
+  const [jobMessage, setJobMessage] = useState<string | undefined>();
+  const [jobId, setJobId] = useState<string | undefined>();
 
   function isChatGPTUrl(url: string | undefined): boolean {
     return Boolean(url?.startsWith('https://chatgpt.com/') || url?.startsWith('https://chat.openai.com/'));
@@ -56,6 +59,24 @@ export default function App() {
 
   useEffect(() => { void checkConnection(); }, []);
 
+  useEffect(() => {
+    const onProgress = (message: OrganizationJobProgress) => {
+      if (message.type !== 'ORGANIZE_PROGRESS' || message.jobId !== jobId) return;
+      setJobMessage(message.message);
+      if (message.preview) setPreview(message.preview);
+      if (message.phase === 'complete' && message.result) {
+        setResult(message.result);
+        setStatus('idle');
+      }
+      if (message.phase === 'failed') {
+        setErrorMessage(message.error ?? 'Organization failed.');
+        setStatus('error');
+      }
+    };
+    chrome.runtime.onMessage.addListener(onProgress);
+    return () => chrome.runtime.onMessage.removeListener(onProgress);
+  }, [jobId]);
+
   async function scanChatGPT() {
     setStatus('scanning');
     setErrorMessage(undefined);
@@ -84,18 +105,12 @@ export default function App() {
     setPreview(undefined);
     setResult(undefined);
     setErrorMessage(undefined);
+    setJobMessage('Starting organization...');
     try {
       const tab = await getChatGPTTab();
-      const response = await sendToChatGPT<RuntimeResponse<OrganizationPreview>>(tab.id, { type: 'ORGANIZE_PREVIEW' });
+      const response = await sendToChatGPT<RuntimeResponse<{ jobId: string }>>(tab.id, { type: 'START_ORGANIZE' });
       if (!response.ok) throw new Error(response.error);
-      setPreview(response.value);
-      const actionable = response.value.assignments.some((assignment) => assignment.action !== 'NEEDS_REVIEW' && assignment.confidence >= 0.7);
-      if (actionable) {
-        const appliedResponse = await sendToChatGPT<RuntimeResponse<OrganizationResult>>(tab.id, { type: 'ORGANIZE_APPLY', preview: response.value });
-        if (!appliedResponse.ok) throw new Error(appliedResponse.error);
-        setResult(appliedResponse.value);
-      }
-      setStatus('idle');
+      setJobId(response.value.jobId);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Organization failed.');
       setStatus('error');
@@ -143,7 +158,7 @@ export default function App() {
           Refresh count
         </button>
       </div>
-      {status === 'scanning' && <p className="muted scan-note">Scrolling the ChatGPT sidebar to load all visible chats.</p>}
+      {status === 'scanning' && <p className="muted scan-note">{jobMessage ?? 'Working...'}</p>}
       {status === 'error' && <p className="error">{errorMessage ?? 'Open ChatGPT in the active tab, then try again.'}</p>}
       {connection === 'disconnected' && <p className="error">Refresh the ChatGPT page after reloading the extension, then reopen this panel.</p>}
       {preview && <section className="preview">
