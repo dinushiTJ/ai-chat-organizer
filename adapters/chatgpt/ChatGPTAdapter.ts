@@ -46,8 +46,28 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
     throw new Error('Project creation is not available until ChatGPT action verification is implemented.');
   }
 
-  async moveChat(_conversationId: string, _projectId: string): Promise<void> {
-    throw new Error('Moving chats is not available until ChatGPT action verification is implemented.');
+  async moveChat(conversationId: string, projectId: string): Promise<void> {
+    const link = [...this.document.querySelectorAll<HTMLAnchorElement>(selectors.conversationLinks)]
+      .find((candidate) => this.idFromHref(candidate.href) === conversationId);
+    if (!link) throw new Error(`Conversation ${conversationId} is not visible in the ChatGPT sidebar.`);
+
+    const row = link.closest('div');
+    const menuButton = row?.querySelector<HTMLButtonElement>('button[aria-label*="option" i], button[aria-label*="menu" i]');
+    if (!menuButton) throw new Error(`Could not verify the options menu for conversation "${link.textContent?.trim() ?? conversationId}".`);
+    menuButton.click();
+    const menu = await this.waitForElement<HTMLElement>(selectors.menu);
+    const moveItem = [...menu.querySelectorAll<HTMLElement>(selectors.menuItems)]
+      .find((item) => /move.*project|add.*project/i.test(item.textContent ?? ''));
+    if (!moveItem) throw new Error('ChatGPT did not show a Move to project action.');
+    moveItem.click();
+
+    const project = await this.waitForElement<HTMLElement>(`[data-project-id="${CSS.escape(projectId)}"]`)
+      .catch(() => undefined);
+    const projectItem = project ?? [...this.document.querySelectorAll<HTMLElement>(selectors.menuItems)]
+      .find((item) => item.textContent?.trim() === this.projectName(projectId));
+    if (!projectItem) throw new Error(`Could not verify destination Project ${projectId}.`);
+    projectItem.click();
+    await this.wait(250);
   }
 
   async archiveChat(_conversationId: string): Promise<void> {
@@ -111,5 +131,20 @@ export class ChatGPTDomAdapter implements ChatGPTAdapter {
 
   private wait(milliseconds: number): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  }
+
+  private async waitForElement<T extends Element>(selector: string, timeout = 2000): Promise<T> {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const element = this.document.querySelector<T>(selector);
+      if (element) return element;
+      await this.wait(80);
+    }
+    throw new Error(`ChatGPT did not show the expected UI element: ${selector}`);
+  }
+
+  private projectName(projectId: string): string {
+    return [...this.document.querySelectorAll<HTMLAnchorElement>(selectors.projectLinks)]
+      .find((link) => this.idFromHref(link.href) === projectId)?.textContent?.trim() ?? '';
   }
 }

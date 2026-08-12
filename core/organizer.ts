@@ -10,6 +10,41 @@ export interface OrganizationPreview {
   conversationsScanned: number;
 }
 
+export interface OrganizationResult {
+  moved: number;
+  created: number;
+  skipped: number;
+  failed: string[];
+}
+
+export async function applyOrganization(adapter: ChatGPTAdapter, preview: OrganizationPreview): Promise<OrganizationResult> {
+  const result: OrganizationResult = { moved: 0, created: 0, skipped: 0, failed: [] };
+  const projects = [...preview.projects];
+  for (const assignment of preview.assignments) {
+    if (assignment.action === 'NEEDS_REVIEW' || assignment.confidence < 0.7 || !assignment.project) {
+      result.skipped += 1;
+      continue;
+    }
+    try {
+      let project = findMatchingExistingProject(assignment.project, projects);
+      if (!project && assignment.action === 'CREATE_NEW') {
+        project = await adapter.createProject(assignment.project);
+        projects.push(project);
+        result.created += 1;
+      }
+      if (!project) {
+        result.skipped += 1;
+        continue;
+      }
+      await adapter.moveChat(assignment.conversationId, project.id);
+      result.moved += 1;
+    } catch (error) {
+      result.failed.push(error instanceof Error ? error.message : `Failed to move ${assignment.conversationId}.`);
+    }
+  }
+  return result;
+}
+
 export async function previewOrganization(
   adapter: ChatGPTAdapter,
   classifier: Classifier,

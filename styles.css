@@ -29,6 +29,7 @@ h2 { margin: 0 0 12px; font-size: 14px; }
 .secondary:disabled { cursor: wait; opacity: .6; }
 .error { color: #b42318; font-size: 13px; }
 .scan-note { margin: 10px 0 0; font-size: 12px; }
+.success { color: #087f5b; font-size: 13px; }
 .project-list { margin-top: 28px; }
 .project { background: #fff; border-bottom: 1px solid #eee; padding: 11px 0; font-size: 13px; }
 .preview { margin-top: 28px; }

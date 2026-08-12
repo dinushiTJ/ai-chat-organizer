@@ -4,4 +4,6 @@ export const selectors = {
   scrollContainers: 'nav, [role="navigation"], aside, main',
   projectLinks: 'a[href*="/project/"]',
   conversationLinks: 'a[href*="/c/"]',
+  menu: '[role="menu"]',
+  menuItems: '[role="menuitem"], [role="option"]',
 } as const;

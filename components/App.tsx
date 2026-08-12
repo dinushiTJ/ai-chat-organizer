@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { ScanResult } from '../adapters/chatgpt/types';
-import type { OrganizationPreview } from '../core/organizer';
+import type { OrganizationPreview, OrganizationResult } from '../core/organizer';
 
 export default function App() {
   const [scan, setScan] = useState<ScanResult>({ projects: [], unorganizedChats: [] });
   const [status, setStatus] = useState<'idle' | 'scanning' | 'error'>('idle');
   const [preview, setPreview] = useState<OrganizationPreview | undefined>();
+  const [result, setResult] = useState<OrganizationResult | undefined>();
 
   async function scanChatGPT() {
     setStatus('scanning');
@@ -41,6 +42,21 @@ export default function App() {
     }
   }
 
+  async function applyOrganization() {
+    if (!preview) return;
+    setStatus('scanning');
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id || !tab.url?.startsWith('https://chatgpt.com/')) throw new Error('Open ChatGPT to organize.');
+      const applied = await chrome.tabs.sendMessage<{ type: string; preview: OrganizationPreview }, OrganizationResult>(tab.id, { type: 'ORGANIZE_APPLY', preview });
+      setResult(applied);
+      setStatus('idle');
+    } catch (error) {
+      setStatus('error');
+      console.error(error);
+    }
+  }
+
   return (
     <main className="panel">
       <header>
@@ -68,11 +84,13 @@ export default function App() {
       {status === 'error' && <p className="error">Open ChatGPT in the active tab, then try again.</p>}
       {preview && <section className="preview">
         <h2>Organization Preview</h2>
-        <p className="muted">{preview.conversationsScanned === 0 ? 'Everything is already organized.' : `${preview.conversationsScanned} new chats reviewed. Nothing has been moved.`}</p>
+        <p className="muted">{preview.conversationsScanned === 0 ? 'Everything is already organized.' : `${preview.conversationsScanned} new chats reviewed.`}</p>
         {preview.assignments.map((assignment) => <div className="assignment" key={assignment.conversationId}>
           <strong>{assignment.conversationId}</strong>
           <span>{assignment.action === 'NEEDS_REVIEW' ? 'Needs review' : `${assignment.action === 'CREATE_NEW' ? 'New Project' : 'Use'}: ${assignment.project ?? 'Unassigned'}`}</span>
         </div>)}
+        {preview.assignments.some((assignment) => assignment.action !== 'NEEDS_REVIEW' && assignment.confidence >= 0.7) && !result && <button className="primary" onClick={applyOrganization}>Apply Organization</button>}
+        {result && <p className="success">Moved {result.moved} chats. Skipped {result.skipped}. Failed {result.failed.length}.</p>}
       </section>}
       {status === 'idle' && scan.projects.length > 0 && (
         <section className="project-list">

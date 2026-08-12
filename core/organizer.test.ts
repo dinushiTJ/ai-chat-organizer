@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Classifier } from './classifier';
-import { previewOrganization } from './organizer';
+import { applyOrganization, previewOrganization } from './organizer';
 import type { ChatGPTAdapter } from '../adapters/chatgpt/ChatGPTAdapter';
 
 describe('previewOrganization', () => {
@@ -15,5 +15,26 @@ describe('previewOrganization', () => {
     const preview = await previewOrganization(adapter, classifier);
     expect(preview.assignments[0]?.action).toBe('USE_EXISTING');
     expect(preview.assignments[0]?.project).toBe('Career');
+  });
+});
+
+describe('applyOrganization', () => {
+  it('moves only confident assignments and skips review items', async () => {
+    const moved: string[] = [];
+    const adapter = {
+      createProject: async () => ({ id: 'new', name: 'Travel' }),
+      moveChat: async (conversationId: string) => { moved.push(conversationId); },
+    } as unknown as ChatGPTAdapter;
+    const result = await applyOrganization(adapter, {
+      projects: [{ id: 'travel', name: 'Travel' }],
+      conversationsScanned: 2,
+      review: [],
+      assignments: [
+        { conversationId: 'one', action: 'USE_EXISTING', project: 'Travel', confidence: 0.9, reason: 'match' },
+        { conversationId: 'two', action: 'NEEDS_REVIEW', confidence: 0.5, reason: 'unclear' },
+      ],
+    });
+    expect(moved).toEqual(['one']);
+    expect(result).toMatchObject({ moved: 1, skipped: 1, failed: [] });
   });
 });
